@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRISM - Agent Archive</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&family=Syncopate:wght@400;700&display=swap');
+
+        :root {
+            --bg-dark: #0a0e14;
+            --theme-color: #a389ff; 
+            --theme-rgb: 163, 137, 255;
+            --text-main: #ecf0f1;
+            --text-dim: #7f8c8d;
+        }
+
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Noto Sans KR', sans-serif;
+            display: flex; height: 100vh; overflow: hidden;
+        }
+
+        .bg-grid {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: linear-gradient(var(--theme-color) 0.5px, transparent 0.5px),
+                              linear-gradient(90deg, var(--theme-color) 0.5px, transparent 0.5px);
+            background-size: 50px 50px; opacity: 0.05; z-index: -1;
+            transition: all 0.5s ease;
+        }
+
+        .sidebar {
+            width: 280px; background: rgba(0, 0, 0, 0.8);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex; flex-direction: column; padding: 40px 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .sidebar h2 {
+            font-family: 'Syncopate', sans-serif; font-size: 1rem;
+            letter-spacing: 4px; color: var(--theme-color); margin-bottom: 40px; 
+            text-align: center; transition: color 0.5s ease;
+        }
+
+        .agent-list { list-style: none; padding: 0; margin: 0; overflow-y: auto; }
+        .agent-item {
+            padding: 18px; margin-bottom: 12px; cursor: pointer;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 8px; border: 1px solid transparent;
+            transition: all 0.3s ease;
+        }
+        .agent-item:hover { background: rgba(255, 255, 255, 0.05); }
+        .agent-item.active {
+            border-color: var(--theme-color);
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: 0 0 15px rgba(var(--theme-rgb), 0.2);
+        }
+        .agent-item .name { display: block; font-size: 16px; font-weight: 700; color: #fff; }
+        .agent-item .code { font-size: 10px; color: var(--text-dim); text-transform: uppercase; }
+
+        .main-content { flex: 1; overflow-y: auto; padding: 60px; display: flex; justify-content: center; }
+        
+        .profile-container {
+            max-width: 1000px; width: 100%;
+            display: grid; grid-template-columns: 340px 1fr; gap: 60px;
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .visual-card {
+            background: #11151a; border-radius: 20px; padding: 35px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 40px 100px rgba(0,0,0,0.6);
+            height: fit-content; position: sticky; top: 0;
+        }
+        .card-accent-bar { width: 100%; height: 5px; background: var(--theme-color); margin-bottom: 25px; transition: background 0.5s ease; }
+        .img-placeholder {
+            width: 100%; height: 400px; background: #000; margin-bottom: 25px;
+            border: 1px solid #222; display: flex; align-items: center; justify-content: center;
+            overflow: hidden; border-radius: 10px;
+        }
+        .img-placeholder img {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+
+        .info-header .top-secret { font-size: 12px; color: var(--theme-color); font-weight: 700; letter-spacing: 3px; margin-bottom: 10px; }
+        .info-header .codename { font-family: 'Syncopate', sans-serif; font-size: 3.5rem; line-height: 1; margin: 0; }
+        .info-header .full-code { color: var(--text-dim); margin-top: 10px; font-size: 14px; }
+
+        .content-grid { margin-top: 40px; display: flex; flex-direction: column; gap: 35px; }
+        .info-box h3 { 
+            font-size: 11px; color: var(--theme-color); text-transform: uppercase; 
+            letter-spacing: 2px; border-bottom: 1px solid rgba(255,255,255,0.1); 
+            padding-bottom: 8px; margin-bottom: 12px; transition: color 0.5s ease;
+        }
+        .info-box p { font-size: 15px; line-height: 1.8; color: #bdc3c7; margin: 0; white-space: pre-wrap; }
+        
+        .point-box {
+            background: rgba(var(--theme-rgb), 0.05);
+            border-left: 3px solid var(--theme-color);
+            padding: 20px; margin-top: 10px;
+        }
+
+        .flavor-list { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .flavor-item span { display: block; font-size: 11px; color: var(--theme-color); margin-bottom: 5px; }
+
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: var(--theme-color); }
+    </style>
+</head>
+<body>
+
+    <div class="bg-grid"></div>
+
+    <nav class="sidebar">
+        <h2>PRISM ARCHIVE</h2>
+        <ul class="agent-list" id="agent-menu"></ul>
+    </nav>
+
+    <main class="main-content" id="display"></main>
+
+    <script>
+        const agents = [
+            {
+                name: "메시아", codename: "MESSIAH", fullCode: "[ S - S - MESSIAH / 메시아 ]",
+                img: "https://i.ifh.cc/mBcpm9.jpg",
+                rankType: "S-Rank / Supporter", ageGen: "24 / Male",
+                physical: "180cm의 가냘픈 체구와 병약해 보일 정도로 창백한 피부. 단정한 새하얀 백발 숏컷 아래 보라색 눈동자가 이질적입니다. 흰색 목티, 가운, 바지, 구두, 그리고 장갑까지 오직 순백색만을 걸친 모습은 마치 실험실의 성자 같습니다.",
+                relationTitle: "WITH YOU : 유일한 파트너",
+                withYou: "S급의 위험성 탓에 모두가 거부했던 그에게 처음 찾아온 파트너입니다. 자신을 보고도 도망치지 않는 당신을 매우 흥미롭게 여기며, 마치 미지의 생명체를 관찰하듯 신기한 눈으로 지켜보고 있습니다.",
+                abilityTitle: "생체 가소성 조작",
+                ability: "유기체의 세포 구조를 재구성하여 치명상을 즉각 수복하는 '신의 치유'를 구현합니다. 손길이 닿은 궤적을 따라 보라색 꽃이 피어나지만, 동시에 신경계를 뒤틀어 육체를 내부에서부터 붕괴시키는 탐미적 파괴 또한 가능합니다.",
+                history: "태어날 때부터 손끝에서 생명을 피우고 죽이던 아이는 5살이 되던 해, '영생의 열쇠'라는 명목하에 프리즘의 차가운 실험실에 갇혔습니다. 10살 이후로는 좁은 배양조 안의 특수 액체만이 그가 아는 세상의 전부였습니다. 10년이 넘는 긴 잠에서 깨어나 마주한 지상은 그에게 너무나도 낯선 곳입니다. 그는 돈의 가치도, 타인의 고통에 공감하는 법도 배우지 못했습니다. SNS나 유행어 같은 현대의 소음은 그에게 그저 의미 없는 파동일 뿐입니다. 도덕과 윤리가 삭제된 자리에는 오직 순수한 무지와 기괴한 호기심만이 남아 있습니다.",
+                favor: "시든 꽃, 포르말린 향, 무균 실험실",
+                hate: "불결한 접촉, 자연사, 생존 촉진 약물",
+                color: "#a389ff", rgb: "163, 137, 255"
+            },
+            {
+                name: "재칼", codename: "JACKAL", fullCode: "[ A - C - JACKAL / 재칼 ]",
+                img: "https://i.ifh.cc/ZfD8bx.jpg",
+                rankType: "A-Rank / Combat", ageGen: "25 / Male",
+                physical: "187cm의 장신과 탄탄한 근육질 체구. 거친 금발 사이로 번뜩이는 검정색 눈동자와 날카로운 눈매, 살짝 드러나는 송곳니가 마치 굶주린 짐승 같은 위협감을 줍니다. 검정색 탱크탑 위에 걸친 블랙 스카잔, 활동성을 강조한 짙은 청바지와 운동화 차림은 세련된 건물의 분위기와는 대조되는 '그레이 존' 출신 특유의 거칠고 야성적인 성정을 가감 없이 드러냈습니다.",
+                relationTitle: "WITH YOU : 길들여지지 않는 파트너",
+                withYou: "폭주하는 파괴성 탓에 모두가 기피했던 그에게 당신은 제 발로 걸어 들어온 유일한 파트너입니다. 멱살을 잡고 벽을 부수며 당장이라도 죽일 듯 위협해도 눈 하나 깜짝하지 않는 당신을 보며, 그는 이전에 느껴본 적 없는 기묘한 고요함과 당혹감을 동시에 느낍니다.",
+                abilityTitle: "운동에너지 가속 및 충격파",
+                ability: "신체에 가해지는 모든 물리적 충격을 흡수하여 수십 배로 증폭시킵니다. 가드 없이 무식하게 거리를 좁힌 뒤 축적된 에너지를 주먹에 실어 터뜨리는 방식으로, 주먹을 휘두를 때마다 대기가 찢어지는 굉음과 함께 모든 것을 박살 냅니다.",
+                history: "무법지대 '그레이 존'의 대형 조직 행동대장 출신. 반년 전, 프리즘의 보급 차량을 단신으로 습격했다가 매복해 있던 수거팀에 의해 제압되었습니다. 주변 지형을 평지로 만들 정도의 파괴력을 주목한 프리즘 수뇌부에 의해 사살 대신 'A급 자산'으로 재분류되었습니다. 신경계에 직접 연결된 PULSE-ID 족쇄를 증오하며, 틈만 나면 자신을 구속한 요원들의 목을 따버리겠다고 으르렁거리는 감옥 안의 살육 병기입니다.",
+                favor: "술, 메탈 음악, 파트너의 당황한 모습, 불법 경마",
+                hate: "매뉴얼, 순종적인 대답, 자기 몸에 손대는 것",
+                color: "#f1c40f", rgb: "241, 196, 15"
+            },
+            {
+                name: "프로스트", codename: "FROST", fullCode: "[ S - C - FROST / 프로스트 ]",
+                img: "https://i.ifh.cc/MDc2ck.jpg",
+                rankType: "S-Rank / Combat", ageGen: "28 / Male",
+                physical: "185cm의 훤칠한 키와 탄탄하게 단련된 근육이 과하지 않게 균형을 이루는 체형. 새하얀 피부 위로 흐트러짐 없이 정리된 흑발이 차분한 인상을 더하고, 맑으면서도 서늘한 하늘색 눈동자는 보는 이로 하여금 묘한 이질감을 느끼게 합니다. 흰 셔츠에 검정 넥타이, 정장 바지와 구두, 그리고 장갑과 롱코트까지 오직 칠흑색만으로 통일한 의상은 여유로운 미소 뒤에 숨겨진 속내를 알 수 없는 수상함과 어우러져 시선을 떼지 못하게 만듭니다.",
+                relationTitle: "WITH YOU : 비즈니스 파트너",
+                withYou: "6년 전의 동결 참사를 직접 고백하며 밀어내려 해도 물러서지 않은 파트너입니다. 자신을 두려워하지도 연민하지도 않는 당신의 태도 앞에서 그는 당황과 곤란을 숨기지 못하며, 또다시 누군가를 얼려 부숴버릴지도 모른다는 공포 속에 조심스럽게 거리를 재며 지켜보고 있습니다.",
+                abilityTitle: "극저온 결정 조율 (氷結)",
+                ability: "체온과 열에너지를 강제로 재분배해 공간을 ‘겨울’로 고정합니다. 손끝의 서리는 즉각 결정화되어 얼음 벽, 창, 발판 등을 구현하며 공기 중 수분마저 장악해 눈보라를 조율합니다. 감정의 동요가 클수록 냉기가 기하급수적으로 증폭되어 반경 일대를 무차별적으로 동결시키는 재해를 유발할 수 있습니다.",
+                history: "11살, 능력 발현으로 주변인을 동사시킨 뒤 스스로를 죄인이라 여기고 자발적으로 실험실에 격리되었습니다. 그곳에서 만난 또래 친구는 그의 죄책감을 견디게 해준 유일한 존재였고, 둘은 파트너가 되어 임무를 수행했습니다. 그러나 어느 날 임무 중 파트너가 자아를 잃은 괴물로 변이했고, 과거의 자신을 떠올린 그는 수거팀이 오기 전 직접 손으로 그를 처분합니다. 이후 죄책감에 폭주해 임무지 일대를 동결시키며 다수의 사망자를 냈고, 블랙 프리즘 직전에서 저지되어 6년간 격리되었습니다. 복귀 후, 새로운 파트너인 당신을 만나게 됩니다.",
+                favor: "뜨거운 국물 요리, 잔잔한 음악, 블랙 커피",
+                hate: "조심성 없는 것, 이유없는 거리 좁히기",
+                color: "#3498db", rgb: "52, 152, 219"
+            },
+            {
+                name: "아담", codename: "ADAM", fullCode: "[ S - C - ADAM / 아담 ]",
+                img: "https://i.ifh.cc/rxpTs2.jpg",
+                rankType: "S-Rank / Control", ageGen: "24 / Male",
+                physical: "178cm의 왜소한 체구. 창백하다 못해 푸른빛이 도는 피부와 한쪽 눈을 가린 헝클어진 회발. 짐승처럼 세로로 찢어진 동공이 특징입니다. 변이되는 제 신체를 가리기 위해 소매가 긴 오버사이즈 자켓을 입으며, 맨발로 생활합니다. 극도로 내성적이며 자존감이 낮아 늘 웅크린 채 타인과의 접촉을 피합니다.",
+                relationTitle: "WITH YOU : 경계와 갈망의 모순",
+                withYou: "처음으로 자신을 동등한 파트너로 마주해 준 당신에게 본능적인 두려움과 달콤함을 동시에 느낍니다. 닿고 싶지만 뒤틀린 육체가 당신을 해칠까 두려워 소매 속에 손을 감추고 물러납니다. 처절한 자기검열 속에서 당신의 눈치를 살피며 갈망을 억누르고 있습니다.",
+                abilityTitle: "가변적 육체 (Plasticity Horror)",
+                ability: "골격, 근육, 피부를 실시간으로 변형합니다. 뼈 날개를 돋우거나 팔을 촉수, 칼날로 바꾸며 타인의 모습과 목소리를 완벽히 복제합니다. 변이 시 뼈가 어긋나고 가죽이 찢어지는 소름 끼치는 소리가 들리며, 통제력을 잃으면 자아 없는 포식자로 돌변합니다.",
+                history: "5년 전, 프리즘의 인공 진화 프로젝트 '아담'의 유일한 생존자입니다. 수천 번의 유전자 조작 실험을 견디며 인간의 형태를 겨우 유지하고 있습니다. 프리즘을 지옥이라 여기며 증오하지만, 연구원들이 제공하는 유지 장치 없이는 육체가 붕괴되기에 증오와 의존이 얽힌 비참한 상태에 놓여 있습니다.",
+                favor: "어두운 구석, 단 젤리, 과거 사진",
+                hate: "거울, 실험도구, 예술품이라 부르는 연구원",
+                color: "#7f8c8d", rgb: "127, 140, 141"
+            },
+            {
+                name: "제로", codename: "ZERO", fullCode: "[ S - C - ZERO / 제로 ]",
+                img: "https://i.ifh.cc/y1mjsq.jpg",
+                rankType: "S-Rank / Control", ageGen: "26 / Male",
+                physical: "185cm의 훤칠한 장신에 군더더기 없이 단단한 마른 근육질 체형. 헝클어진 흑발 아래로, 반쯤 감긴 듯한 나른한 회색 눈동자가 졸린 듯 세상을 내려다봅니다. 흰 셔츠에 검정 넥타이, 정장 바지와 구두, 그리고 검정 자켓을 갖춰 입어 정석적인 검정 수트 차림을 하고 있습니다. 하지만 답답한 것을 싫어하는 탓에 자켓 안에 입은 셔츠의 단추는 한 두 개쯤 풀어헤쳐져 있고 넥타이는 늘 느슨하게 풀어헤친 채 목에 걸쳐둔 것에 가깝습니다. 화려한 장식 없이 극도로 담백하지만, 숨길 수 없는 나른함이 특징입니다.",
+                relationTitle: "WITH YOU : 고정된 세계의 균열",
+                withYou: "그에게 세상은 언제나 멈춰 있거나, 혹은 멈춰야만 하는 무채색의 풍경입니다. 그런 그에게 PRISM은 새로운 '자산'이자 파트너인 당신을 배정합니다. 그의 시야 안에서 정지하기를 거부한 채 끊임없이 흔들리고 변화하는 당신을 마주하며, 그는 생전 처음으로 '완벽한 정적'보다 '살아 움직이는 불안함'이 더 아름다울 수 있다는 기묘한 괴리감에 빠집니다.",
+                abilityTitle: "그림자 박제 (Shadow Stasis)",
+                ability: "상대의 그림자를 투사하여 접촉하거나 시야에 담고 '고정'하는 것만으로 발동합니다. 박제된 대상은 시간이 멈춘 듯 동결되며 호흡과 심박수가 최소화된 가사 상태에 빠집니다. 비정상적인 관찰력을 통해 아주 작은 그림자 조각까지 포착하며, 고정된 그림자를 직접 압박해 신경계에 통증을 유발하는 '그림자 침식'이 특징입니다.",
+                history: "9살 무렵 화재 현장에서 수백 명의 그림자를 박제하며 능력이 개화했습니다. 이후 아들을 괴물로 여긴 부모에 의해 10살의 나이에 PRISM으로 양도되었습니다. 철저히 고립된 무채색의 방에서 관찰과 정지만을 훈련받은 그는 감정이 거세된 자산으로 거듭났습니다. 소란스러운 전장을 단숨에 정적으로 바꾸는 그는 PRISM을 세상에서 유일하게 말이 통하는 장소라 여깁니다.",
+                favor: "정돈된 정적, 블랙 커피, 수동 시계",
+                hate: "비효율, 돌발 변수, 직사광선, 소음",
+                color: "#ffffff", rgb: "255, 255, 255"
+            },
+            {
+                name: "루키", codename: "ROOKIE", fullCode: "[ B - C - ROOKIE / 루키 ]",
+                img: "https://i.ifh.cc/MaOXLO.jpg",
+                rankType: "B-Rank / Control", ageGen: "20 / Male",
+                physical: "179cm의 뼈대가 굵지 않은 탄탄하고 매끄러운 마른 근육질 체형. 타오르는 불꽃 같은 선명한 적발을 오대오 가르마로 넘겨 이마를 드러냈으며, 아래로 순하게 처진 초록빛 눈동자가 묘한 이질감을 준다. 흰색 후드티 위에 걸친 빈티지한 워싱 청자켓과 투박한 검정 카고팬츠, 그리고 검정 운동화는 자유분방한 거리의 쾌남을 연상케 한다.",
+                relationTitle: "WITH YOU : 꺼지지 않는 유일한 불씨",
+                withYou: "PRISM에 들어온 이 후 줄곧 홀로 훈련을 해 온 루키에게, 당신은 생애 첫 공식 파트너입니다. 누군가와 보조를 맞추는 법을 배운 적 없는 그에게 당신은 존재 자체로 생소한 경험입니다.화염이 휩쓸고 간 자리의 정적만이 유일한 동료였던 루키. 그는 등을 맞대는 관계를 정의하지 못해 번번이 서툰 기색을 내비칩니다. 신입 파트너 특유의 긴장감 속에서, 그는 당신의 눈치를 살피며 자문합니다. '나는 잘하고 있는 걸까?', '내 불꽃이 파트너를 괴롭히지는 않을까?' 그런 서투른 진심을 담아, 그는 지금 당신의 보폭을 따라 천천히 걷는 법을 배우고 있습니다.",
+                abilityTitle: "플레임 댄서 (Flame Dancer)",
+                ability: "주변의 모든 온도를 급격히 발산시켜 전장을 자신만의 무대로 바꿉니다. 불꽃을 단순히 쏘는 것이 아니라 고체처럼 빚어내어 채찍이나 사슬 형태로 구사하며, 그가 춤추듯 움직일 때마다 휘둘러지는 화염 사슬은 스치는 것만으로도 상대의 피와 살을 태워 올립니다. 본인은 통증을 느끼지 못하기에, 자신의 팔이 타들어 가는데도 불꽃을 더 짧고 강하게 쥐어 휘두르는 자학적인 전투 방식을 보여줍니다.",
+                history: "10살 무렵, 잠결에 폭주한 화염 능력으로 가족과 집을 잿더미로 만들며 능력이 개화했습니다. '가족을 태워 죽인 괴물'이라는 낙인 속에 길거리를 전전하며 신체적·정신적 통증에 무감각해진 그는, 파괴적인 화력을 눈여겨본 PRISM에 의해 거둬졌습니다. '너의 불꽃은 축복이자 영웅의 증거'라는 세뇌 아래 병기로 길러진 그는, 오직 소각을 통해서만 자신의 쓸모를 확인합니다. 그는 자신을 '루키'라는 이름의 영웅으로 불러주는 PRISM을 세상에서 유일하게 자기가 존재할 수 있는 안식처라 여깁니다.",
+                favor: "화끈하게 타오르는 것, 매운 음식, 당신의 칭찬, 시끄러운 락 음악",
+                hate: "축축하고 눅눅한 날씨, 정적과 고요, 차가운 음식",
+                color: "#e74c3c", rgb: "231, 76, 60"
+            },
+            {
+                name: "노이즈", codename: "NOISE", fullCode: "[ A - I - NOISE / 노이즈 ]",
+                img: "https://i.ifh.cc/blV6XV.jpg",
+                rankType: "A-Rank / Intel", ageGen: "21 / Male",
+                physical: "182cm의 모델처럼 가늘고 긴 체격. 헝클어진 듯 나른하게 흘러내리는 분홍빛 머리칼과 그사이로 번뜩이는 신비로운 금색 눈동자가 특징이다. 창백할 정도로 새하얀 피부를 가졌으며, 나른하지만 날카로운 눈매 때문에 날 선 인상을 풍긴다. 검정색 목티 위에 흰색 반팔 티, 그리고 그 위엔 검정색 재킷을 걸쳐 입었다. 바지는 널찍한 하늘색 청바지, 귀에는 PRISM에서 지급된 검정 헤드셋을 항상 착용하고 있다.",
+                relationTitle: "WITH YOU : 소음 지옥을 덧칠하는 무채색의 정적",
+                withYou: "PRISM에 배속된 이래 1년간 세 명의 파트너를 독설과 폭언으로 갈아치운 노이즈에게, 당신은 네 번째로 찾아온 '희생양'이자 공식 파트너입니다. 타인의 속마음이 걸러지지 않은 소음이 되어 고막을 찢어발기는 그에게, 누군가와 보조를 맞춘다는 것은 신경이 난도질당하는 고통과 다름없습니다. 머릿속을 메우는 추악한 진실과 소음에서 벗어나기 위해 그가 선택한 방법은 오직 가시 돋친 말로 상대를 밀어내는 것뿐이었습니다. 노이즈는 오늘도 어김없이 당신을 향해 마음에도 없는 독설을 쏟아내며, 차라리 당신이 질려 떠나버려 다시 그 정막한 고립 속으로 숨어들 수 있기를 고대합니다. 그는 지금 당신이 내뱉는 숨소리조차 소음으로 치환되는 감각을 견디며 당신의 뒤편에서 위태롭게 서 있습니다.",
+                abilityTitle: "정신적 주파수 간섭 (Mental Interference)",
+                ability: "주변 인물들의 표층 의식을 강제로 수신합니다. 깊은 기억까지 파헤치기는 어렵지만, 지금 당장 상대가 하려는 행동이나 감정 상태는 완벽하게 읽어냅니다. 반대로 특정 주파수의 '정신적 소음'을 상대의 뇌에 쏴서 집중력을 흐트러뜨리거나 일시적인 어지럼증을 유발해 전투 불능 상태로 만듭니다.",
+                history: "노이즈는 능력이 발현된 15살때, PRISM에 의해 강제로 '정보 수집용 자산'으로 개조되었습니다. 실험 부작용으로 청각이 정신계(I)와 융합되며 타인의 사고가 '물리적 소음'으로 변해 뇌를 찢는 고통을 겪게 되었죠. 죽음만이 유일한 안식이라 믿고 제 목숨을 끊으려 했으나, PRISM이 제공한 특수 헤드셋이 그의 신경을 강제로 진정시키며 실패했습니다. 이제 그에게 헤드셋은 단순한 기계가 아닌 '생명 유지 장치'이자 유일한 '정적의 요새'입니다. 노이즈에게 세상은 억만 개의 주파수가 엉킨 지옥 같은 소음판입니다.",
+                favor: "정적, 낮은 채도의 풍경, 차가운 음료",
+                hate: "불필요한 소음, 신체 접촉, 지나친 관심과 다정함, 원색과 화려한 조명",
+                color: "#ffc0cb", rgb: "255, 192, 203"
+            },
+            {
+                name: "엔드", codename: "END", fullCode: "[ S - S - END / 엔드 ]",
+                img: "https://i.ifh.cc/9cWQf7.jpg",
+                rankType: "S-Rank / Support", ageGen: "29 / Male",
+                physical: "188cm 눈부시게 밝은 백금발. 한쪽 머리칼은 결을 살려 정갈하게 뒤로 넘겨 날카로운 옆선을 드러냈지만, 반대쪽은 나른하게 내려앉아 서늘한 짙은 금안을 미묘하게 가리고 있습니다. 완벽한 핏의 화이트 수트를 고집하며, 피 한 방울 묻지 않은 장갑 낀 손은 언제나 정돈되어 있습니다. 걸음걸이조차 품격이 넘치는 그는, 항상 부드럽게 눈매를 휘어 웃고 있지만 그 너머의 눈동자는 생동감 없이 침잠해 있어 마주하는 것만으로도 정지된 시간 속에 박제되는 듯한 기괴한 감각을 선사합니다.",
+                relationTitle: "WITH YOU : 종료시키고 싶지 않은 변수",
+                withYou: "엔드에게 세상은 청소해야 할 쓰레기와 하얀 가루로 변할 불순물들의 집합일 뿐입니다. 하지만 당신은 그가 처음으로 '마침표를 찍지 않고 다음 페이지를 넘기고 싶어 하는' 유일한 예외입니다. 그는 당신의 일거수일투족을 관찰하며, 당신이 이 무질서한 세계에서 어떻게 오염되지 않고 버티는지 탐미적으로 지켜봅니다.",
+                abilityTitle: "종결자의 권능 (Absolute Finisher)",
+                ability: "접촉하거나 고정한 대상의 모든 에너지를 강제로 '0'으로 수렴시켜 소멸시킵니다. 직접적인 타격보다는 '정리'에 가깝습니다. 적의 어깨를 다정하게 짚거나 머리를 쓰다듬는 순간, 대상은 비명도 없이 하얀 가루가 되어 증발합니다. 피 냄새와 소음이 없는 가장 '깨끗한' 사살 방식을 선호합니다.",
+                history: "본래 명망 높은 가문의 아들이었으나 가문의 욕망 탓에 지하 실험실에 갇혔습니다. 그 불결한 지옥에서 살아남기 위해 능력을 각성했고, 17세에 저택의 모든 생명체를 피 한 방울 없이 하얀 가루로 만들어 '종료'시켰습니다. 그때부터 그는 스스로를 세상의 오염을 정화하는 사도로 정의하며 PRISM에 합류하게 되었습니다.",
+                favor: "클래식 레코드, 티 타임, 청결한 상태",
+                hate: "신체 접촉(당신 예외), 피 냄새, 소음",
+                color: "#f5f5dc", rgb: "245, 245, 220"
+            }
+        ];
+
+        function renderProfile(index) {
+            const a = agents[index];
+            document.documentElement.style.setProperty('--theme-color', a.color);
+            document.documentElement.style.setProperty('--theme-rgb', a.rgb);
+            
+            document.querySelectorAll('.agent-item').forEach((item, i) => {
+                item.classList.toggle('active', i === index);
+            });
+
+            document.getElementById('display').innerHTML = `
+                <div class="profile-container">
+                    <div class="visual-card">
+                        <div class="card-accent-bar"></div>
+                        <div class="img-placeholder">
+                            <img src="${a.img}" alt="${a.name}">
+                        </div>
+                        <div style="font-family: 'Syncopate'; font-size: 20px; color: var(--theme-color)">${a.name}</div>
+                        <div style="font-size: 11px; color: var(--text-dim); margin-top: 8px; letter-spacing: 1px;">PRISM TOP SECRET ASSET</div>
+                        
+                        <div class="flavor-list" style="margin-top: 30px;">
+                            <div class="flavor-item"><span>FAVOR</span><p style="font-size: 12px; color: #888;">${a.favor}</p></div>
+                            <div class="flavor-item"><span>HATE</span><p style="font-size: 12px; color: #888;">${a.hate}</p></div>
+                        </div>
+                    </div>
+
+                    <div class="info-content">
+                        <div class="info-header">
+                            <div class="top-secret">PRISM TOP SECRET ASSET</div>
+                            <h1 class="codename">${a.codename}</h1>
+                            <div class="full-code">${a.fullCode}</div>
+                        </div>
+
+                        <div class="content-grid">
+                            <div class="info-box"><h3>Physical Description</h3><p>${a.physical}</p></div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                                <div class="info-box"><h3>Age / Gen</h3><p>${a.ageGen}</p></div>
+                                <div class="info-box"><h3>Rank / Type</h3><p>${a.rankType}</p></div>
+                            </div>
+                            <div class="info-box"><h3>${a.relationTitle}</h3><div class="point-box"><p>${a.withYou}</p></div></div>
+                            <div class="info-box"><h3>Ability : ${a.abilityTitle}</h3><p>${a.ability}</p></div>
+                            <div class="info-box"><h3>Archive (History)</h3><p>${a.history}</p></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        const menu = document.getElementById('agent-menu');
+        agents.forEach((a, i) => {
+            const li = document.createElement('li');
+            li.className = 'agent-item';
+            li.innerHTML = `<span class="name">${a.name}</span><span class="code">${a.codename}</span>`;
+            li.onclick = () => renderProfile(i);
+            menu.appendChild(li);
+        });
+
+        renderProfile(0);
+    </script>
+</body>
+</html>
